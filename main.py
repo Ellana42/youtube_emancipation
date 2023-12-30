@@ -1,14 +1,14 @@
 import argparse
 from pathlib import Path
+import shutil
 import subprocess
 from typing import List
 
 MASTER_FILE = "/Users/ellana/notes/download.md"
 DOWNLOAD_FOLDER = "/Users/ellana/Downloads/youtube_downloads"
 
-# TODO: parametrize filetype
-# TODO: add full pipeline from file checking to download with cleanup (for cron)
-# TODO: clean filenames
+# TODO: clean video names
+# TODO: channel subfolders
 
 
 def get_links(path: Path) -> List[str]:
@@ -45,18 +45,29 @@ def upload_to_onedrive(download_folder: Path):
 
 
 def delete_folder(download_folder: Path):
-    download_folder.rmdir()
+    shutil.rmtree(download_folder)
 
 
 def main(args):
+    input_file = Path(args.input_file)
+    download_folder = Path(args.download_folder)
     if args.download_only:
-        download_links(get_links(Path(args.input_file)), Path(args.download_folder))
+        download_links(get_links(input_file), download_folder)
+        if not args.no_cleanup:
+            cleanup_link_file(input_file)
+            delete_folder(download_folder)
         return
     if args.upload_only:
-        upload_to_onedrive(Path(args.download_folder))
+        upload_to_onedrive(download_folder)
+        if not args.no_cleanup:
+            cleanup_link_file(input_file)
+            delete_folder(download_folder)
         return
-    download_links(get_links(Path(args.input_file)), Path(args.download_folder))
-    upload_to_onedrive(Path(args.download_folder))
+    download_links(get_links(input_file), download_folder)
+    upload_to_onedrive(download_folder)
+    if not args.no_cleanup:
+        cleanup_link_file(input_file)
+        delete_folder(download_folder)
 
 
 if __name__ == "__main__":
@@ -68,5 +79,6 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--download-folder", default=DOWNLOAD_FOLDER)
     parser.add_argument("-d", "--download-only", action="store_true")
     parser.add_argument("-u", "--upload-only", action="store_true")
+    parser.add_argument("-C", "--no-cleanup", action="store_true")
     args = parser.parse_args()
     main(args)
