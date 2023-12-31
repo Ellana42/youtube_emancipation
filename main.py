@@ -1,4 +1,5 @@
 import argparse
+from enum import Enum
 import json
 import logging
 from pathlib import Path
@@ -12,6 +13,11 @@ DOWNLOAD_FOLDER = "/Users/ellana/Downloads/youtube_downloads"
 ONEDRIVE_ROOT = "watching"
 
 
+class FileType(Enum):
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+
+
 def get_links(path: Path) -> List[str]:
     with open(path) as f:
         links = f.readlines()
@@ -23,15 +29,25 @@ def cleanup_link_file(path: Path):
     open(path, "w").close()
 
 
-def download_links(links: List[str], download_folder: Path):
+def download_links(links: List[str], download_folder: Path, filetype: FileType):
     download_folder.mkdir(exist_ok=True)
+    extraction = (
+        [
+            "--extract-audio",
+            "--audio-format",
+            "mp3",
+        ]
+        if filetype == FileType.AUDIO
+        else ["-S", "ext:mp4:m4a"]
+    )
+    logging.debug(f"Extraction {extraction}")
     for link in links:
         subprocess.run(
             [
                 "yt-dlp",
-                "--extract-audio",
-                "--audio-format",
-                "mp3",
+            ]
+            + extraction
+            + [
                 "--write-info-json",
                 "-P",
                 download_folder,
@@ -90,8 +106,10 @@ def delete_folder(download_folder: Path):
 def main(args):
     input_file = Path(args.input_file)
     download_folder = Path(args.download_folder)
+    filetype: FileType = FileType.VIDEO if args.video else FileType.AUDIO
+    logging.debug(f"Filetype: {filetype}")
     if args.download_only:
-        download_links(get_links(input_file), download_folder)
+        download_links(get_links(input_file), download_folder, filetype)
         cleanup_download_names(download_folder)
         if not args.no_cleanup:
             cleanup_link_file(input_file)
@@ -103,7 +121,7 @@ def main(args):
             cleanup_link_file(input_file)
             delete_folder(download_folder)
         return
-    download_links(get_links(input_file), download_folder)
+    download_links(get_links(input_file), download_folder, filetype)
     cleanup_download_names(download_folder)
     upload_to_onedrive(download_folder, args.channel_subfolder)
     if not args.no_cleanup:
@@ -124,5 +142,6 @@ if __name__ == "__main__":
     parser.add_argument("--no-cleanup", action="store_true")
     parser.add_argument("-f", "--format", default="audio", choices=["audio", "video"])
     parser.add_argument("--channel-subfolder", action="store_true")
+    parser.add_argument("-v", "--video", action="store_true")
     args = parser.parse_args()
     main(args)
